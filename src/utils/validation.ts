@@ -74,6 +74,12 @@ export function sanitizeString(value: string): string {
   const lowerValue = value.toLowerCase();
 
   // Create fresh patterns each time to avoid regex state issues
+  // NOTE: These patterns are intentionally conservative – they should only
+  // match realistic attack vectors, not common words or harmless phrases.
+  // Many false positives were caused by overly broad patterns such as
+  // `on\w+\s*=`, `format` (which matches 'information'), or plain SQL
+  // keywords. The list below tightens those checks to reduce false positives
+  // while still catching realistic malicious payloads.
   const dangerousPatterns = [
     // Enhanced XSS patterns - comprehensive script and injection detection
     /<script[^>]*>/gi,
@@ -99,48 +105,47 @@ export function sanitizeString(value: string): string {
     /<select[^>]*on[^>]*>/gi,
     /<textarea[^>]*on[^>]*>/gi,
 
-    // Event handlers with attributes (more specific to avoid false positives)
-    /on\w+\s*=\s*["'][^"']*["']/gi,
-    /onclick/gi,
-    /onload/gi,
-    /onerror/gi,
-    /onmouseover/gi,
-    /onmouseout/gi,
-    /onmousedown/gi,
-    /onmouseup/gi,
-    /onkeydown/gi,
-    /onkeyup/gi,
-    /onkeypress/gi,
-    /onfocus/gi,
-    /onblur/gi,
-    /onchange/gi,
-    /onsubmit/gi,
-    /onreset/gi,
-    /onselect/gi,
-    /onunload/gi,
-    /onabort/gi,
-    /oncanplay/gi,
-    /oncanplaythrough/gi,
-    /oncuechange/gi,
-    /ondurationchange/gi,
-    /onemptied/gi,
-    /onended/gi,
-    /onerror/gi,
-    /onloadeddata/gi,
-    /onloadedmetadata/gi,
-    /onloadstart/gi,
-    /onpause/gi,
-    /onplay/gi,
-    /onplaying/gi,
-    /onprogress/gi,
-    /onratechange/gi,
-    /onseeked/gi,
-    /onseeking/gi,
-    /onstalled/gi,
-    /onsuspend/gi,
-    /ontimeupdate/gi,
-    /onvolumechange/gi,
-    /onwaiting/gi,
+    // Match explicit event attributes only (use word boundary to avoid
+    // matching words that merely start with "on" like "one" or "once").
+    /\bonclick\b/gi,
+    /\bonload\b/gi,
+    /\bonerror\b/gi,
+    /\bonmouseover\b/gi,
+    /\bonmouseout\b/gi,
+    /\bonmousedown\b/gi,
+    /\bonmouseup\b/gi,
+    /\bonkeydown\b/gi,
+    /\bonkeyup\b/gi,
+    /\bonkeypress\b/gi,
+    /\bonfocus\b/gi,
+    /\bonblur\b/gi,
+    /\bonchange\b/gi,
+    /\bonsubmit\b/gi,
+    /\bonreset\b/gi,
+    /\bonselect\b/gi,
+    /\bonunload\b/gi,
+    /\bonabort\b/gi,
+    /\boncanplay\b/gi,
+    /\boncanplaythrough\b/gi,
+    /\boncuechange\b/gi,
+    /\bondurationchange\b/gi,
+    /\bonemptied\b/gi,
+    /\bonended\b/gi,
+    /\bonloadeddata\b/gi,
+    /\bonloadedmetadata\b/gi,
+    /\bonloadstart\b/gi,
+    /\bonpause\b/gi,
+    /\bonplay\b/gi,
+    /\bonplaying\b/gi,
+    /\bonprogress\b/gi,
+    /\bonratechange\b/gi,
+    /\bonseeked\b/gi,
+    /\bonseeking\b/gi,
+    /\bonstalled\b/gi,
+    /\bonsuspend\b/gi,
+    /\bontimeupdate\b/gi,
+    /\bonvolumechange\b/gi,
+    /\bonwaiting\b/gi,
 
     // Dangerous protocols and schemes
     /javascript:/gi,
@@ -161,19 +166,28 @@ export function sanitizeString(value: string): string {
     /-o-link\s*:/gi,
     /-webkit-binding\s*:/gi,
 
-    // SQL injection patterns
-    /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|EXECUTE|TRUNCATE)\b)/gi,
-    /(\b(OR|AND)\s+\d+\s*=\s*\d+)/gi,
-    /(\b(OR|AND)\s+['"].*['"]\s*=\s*['"].*['"])/gi,
+    // SQL injection patterns - use contextual checks to avoid false positives
+    /\bselect\b[\s\S]{0,200}\bfrom\b/gi,
+    /\binsert\b[\s\S]{0,200}\binto\b/gi,
+    /\bupdate\b[\s\S]{0,200}\bset\b/gi,
+    /\bdelete\b[\s\S]{0,200}\bfrom\b/gi,
+    /\bdrop\b\s+\btable\b/gi,
+
+    /(\b(OR|AND)\b\s+\d+\s*=\s*\d+)/gi,
+    /(\b(OR|AND)\b\s+['\"].*['\"]\s*=\s*['\"].*['\"])/gi,
     /(\b(WAITFOR\s+DELAY|SLEEP\s*\(|BENCHMARK\s*\(|DBMS_PIPE\.RECEIVE_MESSAGE)\b)/gi,
     /(--|#|\/\*|\*\/)/gi,  // SQL comments
     /(\b(INFORMATION_SCHEMA|SYS|MASTER|MSDB|MYSQL|PG_CATALOG)\b)/gi,
     /(\b(XP_|SP_)\w+)/gi,  // SQL Server extended procedures
 
-    // Command injection patterns (more specific to avoid false positives)
-    // Removed the broad shell pattern to allow safe HTML tags that should be escaped instead of rejected
-    /(\b(wget|curl|nc|netcat|telnet|ssh|ftp|sftp)\b)/gi,
-    /(rm\s+-rf|del\s+\/s|format|fdisk|mkfs)/gi,
+    // Command injection patterns: require word boundaries and avoid
+    // matching common words as substrings (e.g. 'information' contains
+    // 'format').
+    /\b(rm\s+-rf)\b/gi,
+    /\b(del\s+\/s)\b/gi,
+    /\b(format)\b/gi,
+    /\b(fdisk)\b/gi,
+    /\b(mkfs)\b/gi,
     /(>\s*\/dev\/null|2>&1|\|\|)/gi,
     /(\$\([^)]*\)|`[^`]*`)/gi,  // Command substitution
 
@@ -186,7 +200,7 @@ export function sanitizeString(value: string): string {
     /(c:\\\\windows\\\\system32|\\\\..\\\\)/gi,
 
     // LDAP injection patterns
-    /(\*\)\([&*)]*)/gi,
+    /(\*\)\([^&*)]*)/gi,
     /(\*\)([^)]*\*)*)/gi,
     /(\|\()([^)]*)(\)\|)/gi,
     /(!\()([^)]*)(\))/gi,
@@ -216,9 +230,9 @@ export function sanitizeString(value: string): string {
     // Prototype pollution patterns
     /(__proto__|constructor|prototype)/gi,
 
-    // Content Security Policy violations
-    /(base64|atob|btoa|eval|Function|setTimeout|setInterval)\s*\(/gi,
-    /(document\.(write|writeln|open|close)|window\.(open|location|navigate))/gi,
+    // Only flag actual suspicious function calls (e.g. eval(), setTimeout())
+    /(\b(?:eval|Function|setTimeout|setInterval|atob|btoa)\s*\()/gi,
+    /(\bdocument\.(write|writeln|open|close)\b|\bwindow\.(open|location|navigate)\b)/gi,
 
     // HTML-encoded dangerous content (prevent XSS through encoded vectors)
     /&lt;script[^&]*&gt;/gi,
@@ -234,7 +248,6 @@ export function sanitizeString(value: string): string {
     /&lt;style[^&]*&gt;/gi,
     /&lt;form[^&]*on[^&]*&gt;/gi,
     /javascript:[^&]*/gi,
-    /on\w+[^&]*=/gi,
     /&lt;!--.*?--&gt;/gis,  // HTML-encoded comments
   ];
 

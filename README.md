@@ -80,6 +80,9 @@ For development or customization:
 ```bash
 git clone https://github.com/democratize-technology/vikunja-mcp.git
 cd vikunja-mcp
+```
+
+```shell
 npm install
 npm run build
 ```

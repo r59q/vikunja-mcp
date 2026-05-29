@@ -13,7 +13,7 @@ import { AuthManager } from './auth/AuthManager';
 import { registerTools } from './tools';
 import { logger } from './utils/logger';
 import { createSecureConnectionMessage, createSecureLogConfig } from './utils/security';
-import { createVikunjaClientFactory, setGlobalClientFactory, type VikunjaClientFactory } from './client';
+import { createVikunjaClientFactory, setGlobalClientFactory, setGlobalAuthManager, type VikunjaClientFactory } from './client';
 
 dotenv.config({ quiet: true });
 
@@ -66,6 +66,7 @@ if (process.env.VIKUNJA_URL && process.env.VIKUNJA_API_TOKEN) {
   );
   logger.info(`Auto-authenticating: ${connectionMessage}`);
   authManager.connect(process.env.VIKUNJA_URL, process.env.VIKUNJA_API_TOKEN);
+  setGlobalAuthManager(authManager);
   const detectedAuthType = authManager.getAuthType();
   logger.info(`Using detected auth type: ${detectedAuthType}`);
 }

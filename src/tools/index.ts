@@ -57,18 +57,12 @@ export {
 };
 
 export function registerTools(
-  server: McpServer, 
-  authManager: AuthManager, 
-  clientFactory?: VikunjaClientFactory
+    server: McpServer,
+    authManager: AuthManager,
+    clientFactory?: VikunjaClientFactory
 ): void {
-  // Register tools with conditional availability based on dependencies and authentication
-
   registerAuthTool(server, authManager);
-
-  // Register the comprehensive tasks tool (expected by tests)
   registerTasksTool(server, authManager, clientFactory);
-
-  // Register individual task tools for more granular operations
   registerTaskCrudTool(server, authManager, clientFactory);
   registerTaskBulkTool(server, authManager, clientFactory);
   registerTaskAssigneesTool(server, authManager, clientFactory);
@@ -77,30 +71,23 @@ export function registerTools(
   registerTaskLabelsTool(server, authManager, clientFactory);
   registerTaskRelationsTool(server, authManager, clientFactory);
 
-  // Only register tools that require clientFactory if it's available
-  if (clientFactory) {
-    registerProjectsTool(server, authManager, clientFactory);
-    registerLabelsTool(server, authManager, clientFactory);
-    registerTeamsTool(server, authManager, clientFactory);
+  // These tools use getClientFromContext() at call-time — no factory needed at registration.
+  // Always register them so they're discoverable even if factory init failed at startup.
+  registerLabelsTool(server, authManager, clientFactory);
+  registerTeamsTool(server, authManager, clientFactory);
+  registerFiltersTool(server, authManager, clientFactory);
+  registerTemplatesTool(server, authManager, clientFactory);
+  registerWebhooksTool(server, authManager, clientFactory);
+  registerBatchImportTool(server, authManager, clientFactory);
 
-    // Register filters tool (needs auth manager for session-scoped storage)
-    registerFiltersTool(server, authManager, clientFactory);
+  // registerProjectsTool handles missing factory gracefully via lazy init in getClient()
+  registerProjectsTool(server, authManager, clientFactory);
 
-    // Register templates tool
-    registerTemplatesTool(server, authManager, clientFactory);
 
-    // Register webhooks tool
-    registerWebhooksTool(server, authManager, clientFactory);
-
-    // Register batch import tool
-    registerBatchImportTool(server, authManager, clientFactory);
-
-    // Register user and export tools conditionally (preserving backward compatibility)
-    // NOTE: The permission infrastructure is available for future migration
-    if (authManager.isAuthenticated() && authManager.getAuthType() === 'jwt') {
-      registerUsersTool(server, authManager, clientFactory);
-      registerExportTool(server, authManager, clientFactory);
-    }
+  // JWT-only tools
+  if (authManager.isAuthenticated() && authManager.getAuthType() === 'jwt') {
+    registerUsersTool(server, authManager, clientFactory);
+    registerExportTool(server, authManager, clientFactory);
   }
 }
 

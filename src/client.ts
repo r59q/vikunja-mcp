@@ -14,6 +14,8 @@ import { createAuthRequiredError, createInternalError } from './utils/error-hand
 
 export { VikunjaClientFactory } from './client/VikunjaClientFactory';
 
+let globalAuthManager: AuthManager | null = null;
+
 /**
  * Client context for dependency injection with thread safety
  *
@@ -24,6 +26,8 @@ class ClientContext {
   private static instanceMutex = new Mutex();
   private clientFactory: VikunjaClientFactory | null = null;
   private factoryMutex = new Mutex();
+  private initMutex = new Mutex();
+
 
   private constructor() {}
 
@@ -66,10 +70,25 @@ class ClientContext {
     }
   }
 
+  private async ensureFactory(): Promise<void> {
+    if (await this.hasFactory()) return;
+    if (!globalAuthManager?.isAuthenticated()) return;
+    const release = await this.initMutex.acquire();
+    try {
+      if (await this.hasFactory()) return;
+      const module: VikunjaModule = await import('node-vikunja');
+      if (isVikunjaClientConstructor(module.VikunjaClient)) {
+        const factory = new VikunjaClientFactory(globalAuthManager, module.VikunjaClient);
+        await this.setClientFactory(factory);
+      }
+    } catch { /* let getClient() throw the proper error */ } finally { release(); }
+  }
+
   /**
    * Get a client instance using the factory (thread-safe)
    */
   async getClient(): Promise<VikunjaClient> {
+    await this.ensureFactory();   // <-- add this line
     const release = await this.factoryMutex.acquire();
     try {
       if (this.clientFactory) {
@@ -117,6 +136,11 @@ export async function clearGlobalClientFactory(): Promise<void> {
   const context = await ClientContext.getInstanceAsync();
   await context.clearClientFactory();
 }
+
+export function setGlobalAuthManager(authManager: AuthManager): void {
+  globalAuthManager = authManager;
+}
+
 
 export { ClientContext };
 
