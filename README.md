@@ -2,6 +2,68 @@
 
 A Model Context Protocol (MCP) server that enables AI assistants to interact with Vikunja task management instances.
 
+## Sandbox (Local Development)
+
+An interactive REPL sandbox is available for manually exploring and testing MCP tools without a full AI client.
+
+### Setup
+
+Make sure the project is built first:
+
+```bash
+npm run build
+```
+
+### Running
+
+```bash
+node sandbox.js
+```
+
+### Usage
+
+The following globals are available in the sandbox REPL:
+
+| Command | Description |
+|---|---|
+| `await listTools()` | Print all available MCP tools |
+| `await projects.list()` | List all projects |
+| `await projects.get(id)` | Get a project by ID |
+| `await projects.create({ name, ... })` | Create a project |
+| `await projects.update({ id, ... })` | Update a project |
+| `await projects.delete(id)` | Delete a project |
+| `await tasks.list({ projectId })` | List tasks in a project |
+| `await tasks.get(id)` | Get a task by ID |
+| `await tasks.create({ projectId, title, ... })` | Create a task |
+| `await tasks.update({ id, ... })` | Update a task |
+| `await tasks.delete(id)` | Delete a task |
+| `await tasks.comment(id, "text")` | Add a comment to a task |
+| `await labels.list()` | List all labels |
+| `await labels.create({ title, ... })` | Create a label |
+| `await call('vikunja_X', 'subcommand', { ...params })` | Call **any** MCP tool directly |
+
+### Examples
+
+```js
+// List all projects
+await projects.list()
+
+// List tasks in project 4
+await tasks.list({ projectId: 4 })
+
+// Create a task
+await tasks.create({ projectId: 4, title: "My new task" })
+
+// Call any tool directly by name
+await call("vikunja_tasks", "relate", { id: 10, otherTaskId: 11, relationKind: "subtask" })
+```
+
+### Configuration
+
+The sandbox connects to Vikunja using the credentials hardcoded at the top of `sandbox.js`. Edit the `ENV` block to point at a different instance or token.
+
+---
+
 ## Features
 
 - **Subcommand-based tools** for intuitive AI interactions
